@@ -274,11 +274,11 @@ class UVProjection():
 			loss.backward()
 			optimizer.step()
 
-			# if fill:
-			# 	zero_map = zero_map.detach() / (self.gradient_maps[i] + 1E-8)
-			# 	zero_map = voronoi_solve(zero_map, self.gradient_maps[i][...,0], self.device)
-			# else:
-			zero_map = zero_map.detach() / (self.gradient_maps[i]+1E-8)
+			if fill:
+				zero_map = zero_map.detach() / (self.gradient_maps[i] + 1E-8)
+				zero_map = voronoi_solve(zero_map, self.gradient_maps[i][...,0])
+			else:
+				zero_map = zero_map.detach() / (self.gradient_maps[i]+1E-8)
 			cos_maps.append(zero_map)
 		self.cos_maps = cos_maps
 
@@ -458,7 +458,7 @@ class UVProjection():
 		baked = 0
 		for i in range(len(bake_maps)):
 			normalized_baked_map = bake_maps[i].detach() / (self.gradient_maps[i] + 1E-8)
-			bake_map = voronoi_solve(normalized_baked_map, self.gradient_maps[i][...,0], self.device)
+			bake_map = voronoi_solve(normalized_baked_map, self.gradient_maps[i][...,0])
 			weight = self.visible_triangles[i] * (self.cos_maps[i]) ** exp
 			if noisy:
 				noise = torch.rand(weight.shape[:-1]+(1,), generator=generator).type(weight.dtype).to(weight.device)
@@ -466,7 +466,7 @@ class UVProjection():
 			total_weights += weight
 			baked += bake_map * weight
 		baked /= total_weights + 1E-8
-		baked = voronoi_solve(baked, total_weights[...,0], self.device)
+		baked = voronoi_solve(baked, total_weights[...,0])
 
 		bake_tex = TexturesUV([baked], tmp_mesh.textures.faces_uvs_padded(), tmp_mesh.textures.verts_uvs_padded(), sampling_mode=self.sampling_mode)
 		tmp_mesh.textures = bake_tex

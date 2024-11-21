@@ -71,8 +71,9 @@ def main():
     pipe = Pipeline(opt.exp_cfg, opt.model_cfg, opt.render_cfg, opt.logging_cfg)
     # depth img
     pipe.gen_multiview_cond_img()
+    pipe.gen_multiview_texture(pipe.multi_cond_img)
     # gen coarse multiview img  
-    pipe.gen_multivew_img()
+    # pipe.gen_multivew_img()
 
     # init 
 
