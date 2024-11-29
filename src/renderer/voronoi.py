@@ -46,7 +46,7 @@ def test_performance():
 
 
 
-def voronoi_solve(texture, mask):
+def voronoi_solve(texture, mask, device):
     '''
         This is a warpper of the original cupy voronoi implementation
         The texture color where mask value is 1 will propagate to its
@@ -61,8 +61,8 @@ def voronoi_solve(texture, mask):
     # hwc_texture = texture.permute(1,2,0)
     valid_pix_coord = torch.where(mask>0)
 
-    indices = torch.arange(0, h*w).cuda().reshape(h, w)
-    idx_map = -1 * torch.ones((h,w), dtype=torch.int64).cuda()
+    indices = torch.arange(0, h*w).cuda().reshape(h, w).to(device)
+    idx_map = -1 * torch.ones((h,w), dtype=torch.int64).cuda().to(device)
     print(idx_map.device)
     idx_map[valid_pix_coord] = indices[valid_pix_coord]
 
@@ -70,7 +70,7 @@ def voronoi_solve(texture, mask):
     pong = cp.copy(ping)
     ping = JFAVoronoiDiagram(ping, pong)
 
-    voronoi_map = torch.as_tensor(ping, device="cuda")
+    voronoi_map = torch.as_tensor(ping, device=device)
     nc_voronoi_texture = torch.index_select(texture.reshape(h*w, c), 0, voronoi_map.reshape(h*w))
     voronoi_texture = nc_voronoi_texture.reshape(h, w, c)
 

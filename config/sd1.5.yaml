@@ -1,11 +1,11 @@
-config: data/text2tex_data/backpack/config.yaml
+config: data/ours_data/napoleon/config.yaml
 
 exp_cfg:
 # general
-  seed: 25492539
-  device: "cuda:0"
+  seed: 998244353
+  device: "cuda:1"
 # input
-  mesh: backpack.obj
+  mesh: napoleon.obj
   mesh_config_relative: true
   mesh_path: 
   mesh_scale: 1.0
@@ -18,25 +18,26 @@ exp_cfg:
 
 model_cfg: 
 # path
-  control_net_path: "/share/home/202210188492/.cache/huggingface/hub/models--Shakker-Labs--FLUX.1-dev-ControlNet-Depth/snapshots/2fdfbcf28432e544b41151b1064a1666fd0d5b47"
-  sd_path: "/share/home/202210188492/.cache/huggingface/hub/models--black-forest-labs--FLUX.1-dev/snapshots/0ef5fff789c832c5c7f4e127f94c8b54bbcced44"
+  control_net_path: "lllyasviel/control_v11f1p_sd15_depth"
+  sd_path: "runwayml/stable-diffusion-v1-5"
 
-  num_inference_steps: 24
-  # prompt: 'A photo of Napoleon Bonaparte, realistic'
-  prompt: 'portrait of Napoleon Bonaparte in military uniform, highly detailed, realistic'
+  num_inference_steps: 30
+  # prompt: 'portrait of Napoleon Bonaparte, realistic, best quantity'
+  prompt: 'orange backpack, realistic'
   negative_prompt: ''
-  guidance_scale: 3.5
+  guidance_scale: 7.5
   control_guidance_start: 0.0
   control_guidance_end: 1.0
-  controlnet_conditioning_scale: 0.6
+  controlnet_conditioning_scale: 0.7
   # conditioning_scale_end: 0.9
 
 render_cfg:
   camera_center:
   # camera_azims: [-180, -135, -90, -45, 0, 45, 90, 135] # 8
   camera_azims: [-180, -120, -60, 0, 60, 120] # 6
+  # camera_azims: [-180, -90, 0, 90]
   camera_distance: 4.0
-  top_cameras: true
+  top_cameras: false
 
 logging_cfg:
   log_interval: 10  

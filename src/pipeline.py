@@ -5,6 +5,7 @@ import os
 from torchvision.transforms import Compose, Resize, GaussianBlur, InterpolationMode, ToTensor
 from diffusers import FluxControlNetModel
 from diffusers.pipelines import FluxControlNetPipeline
+from diffusers import ControlNetModel, StableDiffusionXLControlNetPipeline, AutoencoderKL, EDMEulerScheduler, EulerAncestralDiscreteScheduler
 from diffusers.utils import (
     numpy_to_pil
 )
@@ -16,11 +17,11 @@ from .utils import *
 def get_conditioning_images(uvp, output_size, render_size=512, blur_filter=5, cond_type="depth"):
     verts, normals, depths, cos_maps, texels, fragments = uvp.render_geometry(
         image_size=render_size)
-    print('depths shape is: ', depths.shape)
-    print(torch.max(depths))
+    # print('depths shape is: ', depths.shape)
+    # print(torch.max(depths))
     masks = normals[..., 3][:, None, ...]
     masks = Resize((output_size//8,)*2, antialias=True)(masks)
-    print('masks shape is: ', masks.shape)
+    # print('masks shape is: ', masks.shape)
     normals_transforms = Compose([
         Resize((output_size,)*2,
             interpolation=InterpolationMode.BILINEAR, antialias=True),
@@ -39,9 +40,9 @@ def get_conditioning_images(uvp, output_size, render_size=512, blur_filter=5, co
         print(torch.max(view_depths))
         conditional_images = normals_transforms(view_depths)
 
-    print(torch.max(conditional_images))
-    print(torch.min(conditional_images))
-    print('conditional_images shape is: ', conditional_images.shape)
+    # print(torch.max(conditional_images))
+    # print(torch.min(conditional_images))
+    # print('conditional_images shape is: ', conditional_images.shape)
     return conditional_images, masks
 
 class Pipeline:
@@ -51,19 +52,55 @@ class Pipeline:
         self.render_cfg = render_cfg
         self.logging_cfg = logging_cfg
 
-        # flux model init
         self.generator = torch.Generator(
             device=self.exp_cfg.device).manual_seed(self.exp_cfg.seed)
-        self.controlnet = FluxControlNetModel.from_pretrained(
+        
+        # flux model init
+        # self.controlnet = FluxControlNetModel.from_pretrained(
+        #     model_cfg.control_net_path,
+        #     torch_dtype=torch.bfloat16,
+        #     use_safetensors=True,
+        # )
+        # self.pipe = FluxControlNetPipeline.from_pretrained(
+        #     model_cfg.sd_path,
+        #     controlnet=self.controlnet,
+        #     torch_dtype=torch.bfloat16
+        # )
+
+        # sdxl model init
+        self.controlnet = ControlNetModel.from_pretrained(
             model_cfg.control_net_path,
-            torch_dtype=torch.bfloat16,
+            variant="fp16",
             use_safetensors=True,
+            torch_dtype=torch.float16,
         )
-        self.pipe = FluxControlNetPipeline.from_pretrained(
+        self.vae = AutoencoderKL.from_pretrained(model_cfg.vae_path, torch_dtype=torch.float16)
+        self.pipe = StableDiffusionXLControlNetPipeline.from_pretrained(
             model_cfg.sd_path,
             controlnet=self.controlnet,
-            torch_dtype=torch.bfloat16
+            vae=self.vae,
+            variant="fp16",
+            use_safetensors=True,
+            torch_dtype=torch.float16,
         )
+        
+        # sd1.5 model init
+        # self.controlnet = ControlNetModel.from_pretrained(
+        #     model_cfg.control_net_path,
+        #     variant="fp16",
+        #     use_safetensors=True,
+        #     torch_dtype=torch.float16,
+        # )
+        # self.pipe = StableDiffusionXLControlNetPipeline.from_pretrained(
+        #     model_cfg.sd_path,
+        #     controlnet=self.controlnet,
+        #     variant="fp16",
+        #     use_safetensors=True,
+        #     torch_dtype=torch.float16,
+        # )
+        self.pipe.scheduler = EulerAncestralDiscreteScheduler.from_config(self.pipe.scheduler.config)
+
+        print('scheduler is: ', self.pipe.scheduler.compatibles)
 
         # self.pipe.to(exp_cfg.device)
         self.pipe.enable_model_cpu_offload()
@@ -104,8 +141,8 @@ class Pipeline:
 
         # Add two additional cameras for painting the top surfaces
         if self.render_cfg.top_cameras:
-            self.camera_poses.append((30, 0))
-            self.camera_poses.append((30, 180))
+            self.camera_poses.append((90, 0))
+            self.camera_poses.append((-90, 0))
 
             self.attention_mask.append([front_view_idx, cam_count])
             self.attention_mask.append([back_view_idx, cam_count+1])
@@ -165,6 +202,7 @@ class Pipeline:
     @torch.no_grad()
     def unstack_multi_img(self, multi_img, camera_len, H, W):
         # 确保输入形状正确
+        print('shape is: ', multi_img.shape)
         assert multi_img.shape == (1, 3, 2 * H, camera_len // 2 * W), "Input shape does not match expected shape"
         
         # 分割高度方向
@@ -196,23 +234,67 @@ class Pipeline:
 
     @torch.no_grad()
     def gen_multivew_img(self):
+        # flux
+        # self.multi_img = self.pipe(
+        #     prompt=self.model_cfg.prompt,
+        #     prompt_2 = self.model_cfg.prompt,
+        #     num_inference_steps=self.model_cfg.num_inference_steps,
+        #     guidance_scale=self.model_cfg.guidance_scale,
+        #     control_guidance_start=self.model_cfg.control_guidance_start,
+        #     control_guidance_end=self.model_cfg.control_guidance_end,
+        #     control_image=self.multi_cond_img,
+        #     controlnet_conditioning_scale=self.model_cfg.controlnet_conditioning_scale,
+        #     generator=self.generator,
+        #     num_images_per_prompt=1,
+        # ).images[0]
+        # self.multi_img.save(f"{self.intermediate_dir}/coarse.jpg")
+
+        # sdxl
         self.multi_img = self.pipe(
             prompt=self.model_cfg.prompt,
+            prompt_2 = self.model_cfg.prompt,
             num_inference_steps=self.model_cfg.num_inference_steps,
             guidance_scale=self.model_cfg.guidance_scale,
             control_guidance_start=self.model_cfg.control_guidance_start,
             control_guidance_end=self.model_cfg.control_guidance_end,
-            control_image=self.multi_cond_img,
+            image=self.multi_cond_img,
             controlnet_conditioning_scale=self.model_cfg.controlnet_conditioning_scale,
             generator=self.generator,
             num_images_per_prompt=1,
         ).images[0]
         self.multi_img.save(f"{self.intermediate_dir}/coarse.jpg")
 
+    def single_image_to_multiview_img(self, multi_img, prefix=""):
+        if prefix == "": # img
+            transform = Compose([
+                ToTensor(),  # 将PIL.Image或numpy.ndarray转换为torch.FloatTensor
+            ])
+            multi_img = transform(multi_img).unsqueeze(0).to(self.exp_cfg.device)
+        unstack_img = self.unstack_multi_img(multi_img, self.camera_len, self.exp_cfg.rgb_view_size, self.exp_cfg.rgb_view_size)
+        return unstack_img
+    def save_multiview_img(self, multi_img, prefix=""):
+        # (1, ) -> (camera_num, 3, H, W) -> save
+        unstack_img = self.single_image_to_multiview_img(multi_img, prefix)
+        for i in range(unstack_img.shape[0]):
+            image = unstack_img[i,...].permute(1,2,0).cpu().numpy()[None,...]
+            image = numpy_to_pil(image)[0]
+            if prefix == "":
+                inter = ""
+            else:
+                inter = "_"
+            filename = f"{self.intermediate_dir}/{prefix}" + inter + f"{i+1:05d}.jpg"
+            image.save(filename)
+
+
     # corse
     def gen_multiview_texture(self, multi_img):
-        # print('multi_img shape is: ', multi_img.shape)
-        unstack_img = self.unstack_multi_img(multi_img, self.camera_len, self.exp_cfg.rgb_view_size, self.exp_cfg.rgb_view_size)
+        # print('multi_img shape is: ', multi_img.shape)  
+        unstack_img = self.single_image_to_multiview_img(multi_img)
+        # transform = Compose([
+        #     ToTensor(),  # 将PIL.Image或numpy.ndarray转换为torch.FloatTensor
+        # ])
+        # multi_img = transform(multi_img).unsqueeze(0).to(self.exp_cfg.device)
+        # unstack_img = self.unstack_multi_img(multi_img, self.camera_len, self.exp_cfg.rgb_view_size, self.exp_cfg.rgb_view_size)
         result_tex_rgb, result_tex_rgb_output = get_rgb_texture(self.uvp_rgb, unstack_img)
         self.uvp_rgb.save_mesh(f"{self.result_dir}/textured.obj", result_tex_rgb.permute(1,2,0))
         self.uvp_rgb.set_texture_map(result_tex_rgb)

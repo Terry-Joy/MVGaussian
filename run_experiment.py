@@ -10,6 +10,14 @@ from types import SimpleNamespace
 from src.pipeline import Pipeline
 import argparse
 import yaml
+import random
+from types import SimpleNamespace
+
+def namespace_to_dict(namespace):
+    """Recursively convert a nested namespace to a dictionary."""
+    if isinstance(namespace, SimpleNamespace):
+        return {k: namespace_to_dict(v) for k, v in vars(namespace).items()}
+    return namespace
 
 def recursive_namespace(d):
     """Recursively convert a nested dictionary to a namespace."""
@@ -27,12 +35,18 @@ def parse_config(yaml_file):
 
     return options
 
+def write_config_to_yaml(namespace, output_yaml_file):
+    config_dict = namespace_to_dict(namespace)
+    with open(output_yaml_file, 'w') as file:
+        yaml.safe_dump(config_dict, file, default_flow_style=False)
+
 def main():
     parser = argparse.ArgumentParser(description="Run SyncMVD experiment")
     parser.add_argument('--config', type=str, required=True, help='Path to the configuration YAML file')
     args = parser.parse_args()
 
     opt = parse_config(args.config)
+    print('args.config', args.config)
     if opt.exp_cfg.mesh_config_relative:
         opt.exp_cfg.mesh_path = join(dirname(opt.config), opt.exp_cfg.mesh)
     else:
@@ -62,16 +76,28 @@ def main():
         exit(0)
 
     print(f"Saving to {output_dir}")
+    opt.exp_cfg.seed = random.randint(0, 100000000)
 
-    copy(args.config, join(output_dir, "config.yaml"))
+    # copy(args.config, join(output_dir, "config.yaml"))
 
     opt.logging_cfg.output_dir = output_dir
+    
+    write_config_to_yaml(opt, join(output_dir, "config.yaml"))
 
     # init Pipeline
     pipe = Pipeline(opt.exp_cfg, opt.model_cfg, opt.render_cfg, opt.logging_cfg)
     # depth img
     pipe.gen_multiview_cond_img()
-    pipe.gen_multiview_texture(pipe.multi_cond_img)
+
+    # multiview_img
+    pipe.gen_multivew_img()
+    
+    # save multiview depth/img
+    pipe.save_multiview_img(pipe.multi_cond_img, prefix="cond")
+    pipe.save_multiview_img(pipe.multi_img)
+
+    # pipe.gen_multiview_texture(pipe.multi_img)
+
     # gen coarse multiview img  
     # pipe.gen_multivew_img()
 

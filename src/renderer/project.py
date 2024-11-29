@@ -199,7 +199,22 @@ class UVProjection():
 		elev = torch.FloatTensor([pose[0] for pose in camera_poses])
 		azim = torch.FloatTensor([pose[1] for pose in camera_poses])
 		R, T = look_at_view_transform(dist=camera_distance, elev=elev, azim=azim, at=centers or ((0,0,0),))
-		self.cameras = FoVOrthographicCameras(device=self.device, R=R, T=T, scale_xyz=scale or ((1,1,1),))
+		# 定义原点
+		origin = torch.zeros(4, 3)
+		rotated_points = torch.bmm(R, origin.unsqueeze(-1)).squeeze(-1)  # (4, 3, 3) @ (4, 3, 1) -> (4, 3)
+		transformed_points = rotated_points + T  # (4, 3) + (4, 3) -> (4, 3)
+		print('transformed_points', transformed_points)
+		# 将原点转换为列向量
+		# P_col = origin.unsqueeze(1)  # 形状变为 (3, 1)
+
+		# # 应用旋转矩阵
+		# P_rotated = torch.matmul(R, P_col)  # 形状变为 (3, 1)
+
+		# # 应用平移矩阵
+		# P_prime = P_rotated.squeeze(1) + T  # 形状变为 (3,)
+		print('R shape is: ', R.shape)
+		print('T shape is: ', T.shape)
+		self.cameras = FoVOrthographicCameras(device=self.device, R=R, T=T, scale_xyz=scale or ((0.97,0.97,0.97),))
 
 
 	# Set all necessary internal data for rendering and texture baking
@@ -276,7 +291,7 @@ class UVProjection():
 
 			if fill:
 				zero_map = zero_map.detach() / (self.gradient_maps[i] + 1E-8)
-				zero_map = voronoi_solve(zero_map, self.gradient_maps[i][...,0])
+				zero_map = voronoi_solve(zero_map, self.gradient_maps[i][...,0], self.device)
 			else:
 				zero_map = zero_map.detach() / (self.gradient_maps[i]+1E-8)
 			cos_maps.append(zero_map)
@@ -458,7 +473,7 @@ class UVProjection():
 		baked = 0
 		for i in range(len(bake_maps)):
 			normalized_baked_map = bake_maps[i].detach() / (self.gradient_maps[i] + 1E-8)
-			bake_map = voronoi_solve(normalized_baked_map, self.gradient_maps[i][...,0])
+			bake_map = voronoi_solve(normalized_baked_map, self.gradient_maps[i][...,0], self.device)
 			weight = self.visible_triangles[i] * (self.cos_maps[i]) ** exp
 			if noisy:
 				noise = torch.rand(weight.shape[:-1]+(1,), generator=generator).type(weight.dtype).to(weight.device)
@@ -466,7 +481,7 @@ class UVProjection():
 			total_weights += weight
 			baked += bake_map * weight
 		baked /= total_weights + 1E-8
-		baked = voronoi_solve(baked, total_weights[...,0])
+		baked = voronoi_solve(baked, total_weights[...,0], self.device)
 
 		bake_tex = TexturesUV([baked], tmp_mesh.textures.faces_uvs_padded(), tmp_mesh.textures.verts_uvs_padded(), sampling_mode=self.sampling_mode)
 		tmp_mesh.textures = bake_tex
