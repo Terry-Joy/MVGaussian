@@ -95,6 +95,7 @@ def main():
     # save multiview depth/img
     pipe.save_multiview_img(pipe.multi_cond_img, prefix="cond")
     pipe.save_multiview_img(pipe.multi_img)
+    pipe.uvp_rgb.construct_colmap(pipe.exp_cfg.mesh_path, pipe.logging_cfg.output_dir)
 
     # pipe.gen_multiview_texture(pipe.multi_img)
 

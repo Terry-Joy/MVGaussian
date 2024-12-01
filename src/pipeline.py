@@ -110,11 +110,12 @@ class Pipeline:
 
         self.result_dir = f"{output_dir}/results"
         self.intermediate_dir = f"{output_dir}/intermediate"
+        self.colmap_dir = f"{output_dir}/colmap/images"
 
-        dirs = [output_dir, self.result_dir, self.intermediate_dir]
+        dirs = [output_dir, self.result_dir, self.intermediate_dir, self.colmap_dir]
         for dir_ in dirs:
             if not os.path.isdir(dir_):
-                os.mkdir(dir_)
+                os.makedirs(dir_)
 
         # Define the cameras for rendering
         self.camera_poses = []
@@ -229,7 +230,7 @@ class Pipeline:
         self.cond = (control_image).permute(0,2,3,1).cpu().numpy()
         # (H, W, 3)
         self.cond = self.reshape_array(self.cond)
-        numpy_to_pil(self.cond)[0].save(f"{self.intermediate_dir}/cond.jpg")
+        numpy_to_pil(self.cond)[0].save(f"{self.colmap_dir}/cond.jpg")
         self.multi_cond_img = torch.from_numpy(self.cond).permute(2,0,1).unsqueeze(0).to(self.exp_cfg.device)
 
     @torch.no_grad()
@@ -262,7 +263,7 @@ class Pipeline:
             generator=self.generator,
             num_images_per_prompt=1,
         ).images[0]
-        self.multi_img.save(f"{self.intermediate_dir}/coarse.jpg")
+        self.multi_img.save(f"{self.colmap_dir}/coarse.jpg")
 
     def single_image_to_multiview_img(self, multi_img, prefix=""):
         if prefix == "": # img
@@ -282,7 +283,7 @@ class Pipeline:
                 inter = ""
             else:
                 inter = "_"
-            filename = f"{self.intermediate_dir}/{prefix}" + inter + f"{i+1:05d}.jpg"
+            filename = f"{self.colmap_dir}/{prefix}" + inter + f"{i+1:05d}.jpg"
             image.save(filename)
 
 
