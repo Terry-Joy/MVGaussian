@@ -14,8 +14,8 @@ exp_cfg:
 
   latent_view_size: 96
   latent_tex_size: 512
-  rgb_view_size: 512
-  rgb_tex_size: 512
+  rgb_view_size: 1024
+  rgb_tex_size: 1024
 
 model_cfg: 
 # path
@@ -36,8 +36,8 @@ model_cfg:
 render_cfg:
   camera_center:
   # camera_azims: [-180, -135, -90, -45, 0, 45, 90, 135] # 8
-  camera_azims: [-180, -120, -60, 0, 60, 120] # 6
-  # camera_azims: [-180, -90, 0, 90]
+  # camera_azims: [-180, -120, -60, 0, 60, 120] # 6
+  camera_azims: [-180, -90, 0, 90]
   camera_distance: 1.65
   top_cameras: false
 

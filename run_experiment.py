@@ -87,10 +87,10 @@ def main():
     # init Pipeline
     pipe = Pipeline(opt.exp_cfg, opt.model_cfg, opt.render_cfg, opt.logging_cfg)
     # depth img
+    pipe.gen_multiview_cond_img_enhance()
     pipe.gen_multiview_cond_img()
-
     # multiview_img
-    pipe.gen_multivew_img()
+    pipe.gen_multivew_img(pipe.enhance_cond_img)
     
     # save multiview depth/img
     pipe.save_multiview_img(pipe.multi_cond_img, prefix="cond")
