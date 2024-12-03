@@ -131,7 +131,8 @@ class UVProjection():
                 file.write(img_params)
     #
     def save_camera_txt(self, save_path):
-        camera_params = f"1 PINHOLE {self.target_size[0]} {self.target_size[1]} {self.cameras[0].focal_length[0][0].item()} {self.cameras[0].focal_length[0][0].item()} {self.cameras[0].principal_point[0][0].item()} {self.cameras[0].principal_point[0][1].item()}"
+        focal_length = self.cameras[0].focal_length[0][0].item() * self.render_size // 2
+        camera_params = f"1 PINHOLE {self.target_size[0]} {self.target_size[1]} {focal_length} {focal_length} {self.cameras[0].principal_point[0][0].item()} {self.cameras[0].principal_point[0][1].item()}"
         # 写入文件
         with open(save_path, 'w') as file:
             file.write(camera_params)
