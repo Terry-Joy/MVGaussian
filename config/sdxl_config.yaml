@@ -12,8 +12,8 @@ exp_cfg:
   mesh_scale: 1.0
   mesh_autouv: true
 
-  latent_view_size: 96
-  latent_tex_size: 512
+  # latent_view_size: 96
+  # latent_tex_size: 512
   rgb_view_size: 1024
   rgb_tex_size: 1024
 

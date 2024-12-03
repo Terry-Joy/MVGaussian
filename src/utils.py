@@ -4,7 +4,6 @@ import math
 import random
 import os
 import torch
-from pyquaternion import Quaternion
 from torchvision.transforms import Resize, InterpolationMode
 # Decode each view and bake them into a rgb texture
 def get_rgb_texture(uvp_rgb, result_views):
@@ -14,10 +13,6 @@ def get_rgb_texture(uvp_rgb, result_views):
     textured_views_rgb, result_tex_rgb, visibility_weights = uvp_rgb.bake_texture(views=result_views, main_views=[], exp=6, noisy=False)
     result_tex_rgb_output = result_tex_rgb.permute(1,2,0).cpu().numpy()[None,...]
     return result_tex_rgb, result_tex_rgb_output
-
-def rotmat2qvec(R):
-    q = Quaternion(matrix=R[0].cpu().numpy())
-    return q
 
 def rotation_matrix_to_quaternion(rotation_matrix):
     """

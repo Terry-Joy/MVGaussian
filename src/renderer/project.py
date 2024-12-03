@@ -24,7 +24,7 @@ from pytorch3d.renderer import (
 from .geometry import HardGeometryShader
 from .shader import HardNChannelFlatShader
 from .voronoi import voronoi_solve
-from ..utils import rotmat2qvec, create_directory, rotation_matrix_to_quaternion
+from ..utils import create_directory, rotation_matrix_to_quaternion
 
 
 # Pytorch3D based renderering functions, managed in a class
@@ -131,7 +131,7 @@ class UVProjection():
                 file.write(img_params)
     #
     def save_camera_txt(self, save_path):
-        camera_params = f"1 SIMPLE_PINHOLE {self.target_size[0]} {self.target_size[1]} {self.cameras[0].focal_length[0][0].item()} {self.cameras[0].principal_point[0][0].item()} {self.cameras[0].principal_point[0][1].item()}"
+        camera_params = f"1 PINHOLE {self.target_size[0]} {self.target_size[1]} {self.cameras[0].focal_length[0][0].item()} {self.cameras[0].focal_length[0][0].item()} {self.cameras[0].principal_point[0][0].item()} {self.cameras[0].principal_point[0][1].item()}"
         # 写入文件
         with open(save_path, 'w') as file:
             file.write(camera_params)

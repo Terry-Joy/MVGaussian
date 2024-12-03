@@ -36,8 +36,6 @@ def get_conditioning_images(uvp, output_size, render_size=512, blur_filter=5, co
     # But it do generate using the unnormalized form as below
     elif cond_type == "depth":
         view_depths = uvp.decode_normalized_depth(depths).permute(0, 3, 1, 2)
-        print('view_depths shape is: ', view_depths.shape)
-        print(torch.max(view_depths))
         conditional_images = normals_transforms(view_depths)
 
     # print(torch.max(conditional_images))
@@ -100,7 +98,7 @@ class Pipeline:
         # )
         self.pipe.scheduler = EulerAncestralDiscreteScheduler.from_config(self.pipe.scheduler.config)
 
-        print('scheduler is: ', self.pipe.scheduler.compatibles)
+        # print('scheduler is: ', self.pipe.scheduler.compatibles)
 
         self.pipe.to(exp_cfg.device)
         # self.pipe.enable_model_cpu_offload()
@@ -205,7 +203,6 @@ class Pipeline:
     @torch.no_grad()
     def unstack_multi_img(self, multi_img, camera_len, H=0, W=0):
         # 确保输入形状正确
-        print('shape is: ', multi_img.shape)
         # assert multi_img.shape == (1, 3, 2 * H, camera_len // 2 * W), "Input shape does not match expected shape"]
         H = multi_img.shape[2] // 2
         W = multi_img.shape[3] // 2
@@ -216,8 +213,6 @@ class Pipeline:
         # 分割宽度方向
         part1_split = torch.split(part1, W, dim=-1)  # 沿宽度方向分割成多个部分
         part2_split = torch.split(part2, W, dim=-1)  # 沿宽度方向分割成多个部分
-        print('part1_split shape is: ', part1_split[0].shape)
-        print('part2_split', part2_split[0].shape)
         # 重新组合成 (camera_len, 3, H, W) 形状
         parts = part1_split + part2_split
         result = torch.cat(parts, dim=0).squeeze(1)  # 去掉多余的维度

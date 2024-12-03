@@ -1,6 +1,5 @@
 torch==2.0.1
 torchvision
-# diffusers==0.19.3
 transformers==4.46.2
 xformers==0.0.20
 xatlas
@@ -10,3 +9,5 @@ configargparse
 ipython
 protobuf==5.28.3
 sentencepiece==0.2.0
+trimesh==4.5.3
+diffusers==0.31.0
