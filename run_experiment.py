@@ -76,7 +76,7 @@ def main():
         exit(0)
 
     print(f"Saving to {output_dir}")
-    opt.exp_cfg.seed = random.randint(0, 100000000)
+    # opt.exp_cfg.seed = random.randint(0, 100000000)
 
     # copy(args.config, join(output_dir, "config.yaml"))
 
@@ -90,17 +90,17 @@ def main():
     pipe.gen_multiview_cond_img_enhance()
     pipe.gen_multiview_cond_img()
     # multiview_img
-    pipe.gen_multivew_img(pipe.enhance_cond_img)
+    # pipe.gen_multivew_img(pipe.multi_cond_img, False)
+    pipe.gen_multivew_img(pipe.enhance_cond_img, True) # try clip img
     
     # save multiview depth/img
     pipe.save_multiview_img(pipe.multi_cond_img, prefix="cond")
     pipe.save_multiview_img(pipe.multi_img)
-    pipe.uvp_rgb.construct_colmap(pipe.exp_cfg.mesh_path, pipe.logging_cfg.output_dir)
+    # pipe.uvp_rgb.construct_colmap(pipe.exp_cfg.mesh_path, pipe.logging_cfg.output_dir, sample=True) # Perspective camera
+    # pipe.uvp_test.construt_custom_camera(pipe.logging_cfg.output_dir)
 
-    # pipe.gen_multiview_texture(pipe.multi_img)
+    pipe.gen_multiview_texture(pipe.multi_img)
 
-    # gen coarse multiview img  
-    # pipe.gen_multivew_img()
 
     # init 
 

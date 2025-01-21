@@ -1,11 +1,11 @@
-config: data/text2tex_data/backpack/config.yaml
+config: data/ours_data/race_car/5345d37be48c4202b25ba2e2b5a8540e/config.yaml
 
 exp_cfg:
 # general
   seed: 25492539
   device: "cuda:0"
 # input
-  mesh: backpack.obj
+  mesh: napoleon.obj
   mesh_config_relative: true
   mesh_path: 
   mesh_scale: 1.0

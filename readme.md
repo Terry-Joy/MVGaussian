@@ -19,12 +19,4 @@ pip install --no-index --no-cache-dir pytorch3d -f https://dl.fbaipublicfiles.co
 ```bash
 python run_experiment.py --config config/sdxl_config.yaml
 ```
-
-then colmap data dir will be saved in save_dir
-
-put the colmap dir for gaussian splatting
-
-**3d gaussian**
-```bash
-python train.py -s data/colmap
-```
+具体更新sdxl的参数即可

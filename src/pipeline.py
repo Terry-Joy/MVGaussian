@@ -3,8 +3,8 @@ import torch
 import numpy as np
 import os
 from torchvision.transforms import Compose, Resize, GaussianBlur, InterpolationMode, ToTensor
-from diffusers import FluxControlNetModel
-from diffusers.pipelines import FluxControlNetPipeline
+# from diffusers import FluxControlPipeline
+# from diffusers.pipelines import FluxControlNetPipeline, FluxControlPipeline
 from diffusers import ControlNetModel, StableDiffusionXLControlNetPipeline, AutoencoderKL, EDMEulerScheduler, EulerAncestralDiscreteScheduler
 from diffusers.utils import (
     numpy_to_pil
@@ -81,6 +81,7 @@ class Pipeline:
             use_safetensors=True,
             torch_dtype=torch.float16,
         )
+        self.pipe.scheduler = EulerAncestralDiscreteScheduler.from_config(self.pipe.scheduler.config)
         
         # sd1.5 model init
         # self.controlnet = ControlNetModel.from_pretrained(
@@ -96,7 +97,9 @@ class Pipeline:
         #     use_safetensors=True,
         #     torch_dtype=torch.float16,
         # )
-        self.pipe.scheduler = EulerAncestralDiscreteScheduler.from_config(self.pipe.scheduler.config)
+
+        # flux origin
+        # self.pipe = FluxControlPipeline.from_pretrained("black-forest-labs/FLUX.1-Depth-dev", torch_dtype=torch.bfloat16)
 
         # print('scheduler is: ', self.pipe.scheduler.compatibles)
 
@@ -120,33 +123,41 @@ class Pipeline:
         self.attention_mask = []
         self.centers = self.render_cfg.camera_center
 
+        
+        self.custom_camera_poses = []
+        self.custom_attention_mask = []
+
         cam_count = len(self.render_cfg.camera_azims)
-        front_view_diff = 360
-        back_view_diff = 360
-        front_view_idx = 0
-        back_view_idx = 0
-        for i, azim in enumerate(self.render_cfg.camera_azims):
-            if azim < 0:
-                azim += 360
-            self.camera_poses.append((0, azim))
-            self.attention_mask.append(
-                [(cam_count+i-1) % cam_count, i, (i+1) % cam_count])
-            if abs(azim) < front_view_diff:
-                front_view_idx = i
-                front_view_diff = abs(azim)
-            if abs(azim - 180) < back_view_diff:
-                back_view_idx = i
-                back_view_diff = abs(azim - 180)
+        custom_cam_count = len(self.render_cfg.custom_camera_azims)
+        self.set_camera_poses(self.camera_poses, self.attention_mask, cam_count, self.render_cfg.camera_azims)
+        self.set_camera_poses(self.custom_camera_poses, self.custom_attention_mask, custom_cam_count, self.render_cfg.custom_camera_azims)
+        # front_view_diff = 360
+        # back_view_diff = 360
+        # front_view_idx = 0
+        # back_view_idx = 0
+        # for i, azim in enumerate(self.render_cfg.camera_azims):
+        #     if azim < 0:
+        #         azim += 360
+        #     self.camera_poses.append((0, azim))
+        #     self.attention_mask.append(
+        #         [(cam_count+i-1) % cam_count, i, (i+1) % cam_count])
+        #     if abs(azim) < front_view_diff:
+        #         front_view_idx = i
+        #         front_view_diff = abs(azim)
+        #     if abs(azim - 180) < back_view_diff:
+        #         back_view_idx = i
+        #         back_view_diff = abs(azim - 180)
 
-        # Add two additional cameras for painting the top surfaces
-        if self.render_cfg.top_cameras:
-            self.camera_poses.append((90, 0))
-            self.camera_poses.append((-90, 0))
+        # # Add two additional cameras for painting the top surfaces
+        # if self.render_cfg.top_cameras:
+        #     self.camera_poses.append((90, 0))
+        #     self.camera_poses.append((-90, 0))
 
-            self.attention_mask.append([front_view_idx, cam_count])
-            self.attention_mask.append([back_view_idx, cam_count+1])
+        #     self.attention_mask.append([front_view_idx, cam_count])
+        #     self.attention_mask.append([back_view_idx, cam_count+1])
 
         self.camera_len = len(self.camera_poses)
+        # Define custom camera
 
         # Set up pytorch3D for projection between screen space and UV space
         # uvp is for latent and uvp_rgb for rgb color
@@ -166,8 +177,41 @@ class Pipeline:
         self.uvp_rgb.calculate_cos_angle_weights(cos_maps, fill=False)
         self.uvp_rgb.to(self.exp_cfg.device)
 
+        self.uvp_test = UVP(texture_size=self.exp_cfg.rgb_tex_size, render_size=self.exp_cfg.rgb_view_size,
+                       sampling_mode="nearest", channels=3, device=self.exp_cfg.device)
+        self.uvp_test.set_cameras(
+            self.custom_camera_poses, centers=self.centers, camera_distance=self.render_cfg.camera_distance)
+        self.uvp_test.to(self.exp_cfg.device)
         self.origin_bounding_box = []
     # Used to generate depth or normal conditioning images
+    @torch.no_grad()
+    def set_camera_poses(self, camera_poses, attention_mask, cam_count, camera_azims, centers=None):
+        front_view_diff = 360
+        back_view_diff = 360
+        front_view_idx = 0
+        back_view_idx = 0
+        for i, azim in enumerate(camera_azims):
+            if azim < 0:
+                azim += 360
+            camera_poses.append((0, azim))
+            attention_mask.append(
+                [(cam_count+i-1) % cam_count, i, (i+1) % cam_count])
+            if abs(azim) < front_view_diff:
+                front_view_idx = i
+                front_view_diff = abs(azim)
+            if abs(azim - 180) < back_view_diff:
+                back_view_idx = i
+                back_view_diff = abs(azim - 180)
+
+        # Add two additional cameras for painting the top surfaces
+        if self.render_cfg.top_cameras:
+            camera_poses.append((90, 0))
+            camera_poses.append((-90, 0))
+
+            attention_mask.append([front_view_idx, cam_count])
+            attention_mask.append([back_view_idx, cam_count+1])
+
+        
 
     @torch.no_grad() 
     def get_condition_map(image):
@@ -401,7 +445,7 @@ class Pipeline:
         
         return filled_control_image
     @torch.no_grad()
-    def gen_multivew_img(self, multi_cond_img):
+    def gen_multivew_img(self, multi_cond_img, enhance=False):
         # flux
         # self.multi_img = self.pipe(
         #     prompt=self.model_cfg.prompt,
@@ -416,6 +460,15 @@ class Pipeline:
         #     num_images_per_prompt=1,
         # ).images[0]
         # self.multi_img.save(f"{self.intermediate_dir}/coarse.jpg")
+
+        # flux origin
+        # self.multi_img = self.pipe(
+        #     prompt=self.model_cfg.prompt,
+        #     control_image=multi_cond_img,
+        #     num_inference_steps=30,
+        #     guidance_scale=10.0,
+        #     generator=self.generator,
+        # ).images[0]
 
         # sdxl
         self.multi_img = self.pipe(
@@ -432,10 +485,13 @@ class Pipeline:
             generator=self.generator,
             num_images_per_prompt=1,
         ).images[0]
-        if not len(self.origin_bounding_box) == 0:
+        if enhance:
             unstack_img = self.single_image_to_multiview_img(self.multi_img)
             # fill cilped multiview img -> origin img
             self.multi_img = self.fill_control_image_with_unstacked_images(unstack_img)
+            self.multi_img = self.multi_img * self.origin_mask + (1 - self.origin_mask)
+        else:
+            self.multi_img = self.single_image_to_multiview_img(self.multi_img)
             self.multi_img = self.multi_img * self.origin_mask + (1 - self.origin_mask)
         self.multi_img = (self.multi_img).permute(0,2,3,1).cpu().numpy()
         # multiview img -> one coarse img

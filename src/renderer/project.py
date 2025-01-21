@@ -2,6 +2,7 @@ import torch
 import pytorch3d
 import trimesh
 import numpy as np
+import yaml
 import os
 from pytorch3d.io import load_objs_as_meshes, load_obj, save_obj, IO
 
@@ -81,7 +82,7 @@ class UVProjection():
             mesh = self.uv_unwrap(mesh)
         self.mesh = mesh
 
-    def construct_colmap(self, obj_path, save_path):
+    def construct_colmap(self, obj_path, save_path, sample=False):
         # create colmap format to gaussian
         sparse_path = os.path.join(save_path, "colmap", "sparse", "0")
         image_txt_path = os.path.join(sparse_path, "images.txt")
@@ -90,10 +91,29 @@ class UVProjection():
         create_directory(sparse_path)
         self.save_image_txt(image_txt_path)
         self.save_camera_txt(camera_txt_path)
-        self.process_and_save_mesh_as_pointcloud(obj_path, ply_path)
+        self.process_and_save_mesh_as_pointcloud(obj_path, ply_path, sample)
 
+    def construt_custom_camera(self, save_path):
+        sparse_path = os.path.join(save_path, "colmap", "sparse", "0")
+        camera_txt_path = os.path.join(sparse_path, "custom_camera.yaml")
+        self.save_custom_camera_yaml(camera_txt_path)
+
+    def save_custom_camera_yaml(self, save_path):
+        cameras = {}
+        for i in range(len(self.cameras)):
+            camera_name = f'camera_{i}'
+            camera_params = {}
+            print('self.cameras[i].R', self.cameras[i].R)
+            camera_params['R'] = self.cameras[i].R.cpu().numpy().tolist()
+            camera_params['T'] = self.cameras[i].T[0].cpu().numpy().tolist()
+            camera_params['W'] = camera_params['H'] = self.target_size[0]
+            camera_params['focal_length'] = self.cameras[0].focal_length[0][0].item() * self.render_size // 2
+            cameras[camera_name] = camera_params
+        with open(save_path, "w", encoding='utf-8') as f:
+            yaml.dump(cameras, f)
+            
     # point3D.ply
-    def process_and_save_mesh_as_pointcloud(self, obj_path, save_path):
+    def process_and_save_mesh_as_pointcloud(self, obj_path, save_path, sample=False):
         # Load the mesh from the OBJ file
         verts, faces_idx, aux = load_obj(obj_path)
         normals = aux.normals.float() if aux.normals is not None else None
@@ -110,9 +130,22 @@ class UVProjection():
         # Convert vertices to a numpy array
         verts_np = verts.cpu().numpy()
         normals_np = normals.cpu().numpy() if normals is not None else None
+        faces_np = faces_idx.verts_idx.cpu().numpy()
+
         colors = np.zeros_like(verts_np, dtype=np.uint8)
         # Create a trimesh point cloud
-        pcd = trimesh.Trimesh(vertices=verts_np, vertex_normals=normals_np, vertex_colors=colors)
+        if sample:
+            num_samples = verts.shape[0] // 50
+            # print('num_samples', num_samples)
+            mesh = trimesh.Trimesh(vertices=verts_np, faces=faces_np, vertex_normals=normals_np, vertex_colors=colors)
+            points, face_indices, sample_color = trimesh.sample.sample_surface(mesh, num_samples, sample_color=True)
+            face_normals = mesh.face_normals
+            point_normals = face_normals[face_indices]
+            pcd = trimesh.Trimesh(vertices=points, vertex_normals=point_normals, vertex_colors=sample_color)
+        else:
+            pcd = trimesh.Trimesh(vertices=verts_np, vertex_normals=normals_np, vertex_colors=colors)
+
+
         # Export the point cloud to a PLY file
         pcd.export(save_path)
 
@@ -262,9 +295,9 @@ class UVProjection():
         azim = torch.FloatTensor([pose[1] for pose in camera_poses])
         R, T = look_at_view_transform(
             dist=camera_distance, elev=elev, azim=azim, at=centers or ((0, 0, 0),))
-        self.cameras = PerspectiveCameras(device=self.device, R=R, T=T)
+        # self.cameras = PerspectiveCameras(device=self.device, R=R, T=T)
         # print(self.cameras[0].T.shape)
-        # self.cameras = FoVOrthographicCameras(device=self.device, R=R, T=T, scale_xyz=scale or ((0.97,0.97,0.97),))
+        self.cameras = FoVOrthographicCameras(device=self.device, R=R, T=T, scale_xyz=scale or ((0.97, 0.97, 0.97),))
 
     # Set all necessary internal data for rendering and texture baking
     # Can be used to refresh after changing camera positions
